@@ -58,3 +58,46 @@ _
 ** Commit 3
 
 + *raw mode* for the terminal as opposed to canonical mode, processes each keypress, does not wait for RET to be pressed for it to be sent to the program.
++ this commit has the loop modified to quit upon pressing =q=. simple enough.
++ =C-d= and =C-c= work as usual.
+
+
+*** TODO Ponderables [3/3]:
+
++ [X] does the program quit on /immediate/ reception of a /q/, or until RET is pressed?
+*ANSWER*: the terminal is still in canonical mode, therefore inputs are processed only upon receipt of a RET.
+
++ [X] what happens to the rest of the characters that follow a /q/?
+*ANSWER*: these are sent to the terminal after the program has quit, and bash tries to execute them as a command.
+#+BEGIN_SRC 
+> ./kilo
+abcqdef RET
+> def
+bash: def not found
+#+END_SRC
+
++ [X] how do inputs with a /q/ in them work with =C-c=, =C-d= and =C-z=?
+*ANSWER*: Ran testkilo (which echoed each character in the loop body).
+   + =C-c= terminates the program without ceremony, there is no input sent to the bash prompt.
+   + =C-d= works almost like RET: the following bash prompt receives the remaining characters, but does not execute them. RET is not a character that is passed to the shell prompt, which means in normal termination, RET was processed as a normal character, but also flushed the input. Also, the first character printed was on the same line as input.
+   + =C-z= this stops the job and puts in background, =fg= brings it back to foreground; however all the prior input queue is lost ...
+
+#+BEGIN_SRC 
+> ./testkilo
+abcqdef C-d a
+b
+c
+> def C-c
+>
+> ./testkilo
+abcqdef C-c
+>
+> ./testkilo
+abcqdef C-z
+[1]+ Stopped    ./testkilo
+> fg
+./testkilo
+_ 
+#+END_SRC
+
++ [ ] Understand/explain the behaviour of =C-z=.
