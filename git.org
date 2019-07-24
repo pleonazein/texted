@@ -30,3 +30,6 @@ git push -u origin master
 * Questions
 
 + I don't understand the following: /origin/, /master/, /branch/, /pull/.
++ does a push relay every single commit that was made?
++ I made several changes to several files, and ran commit finally, and pushed them. Upon checking Github, some of the files were not committed. Why did this happen?
+ANSWER: it is possible to commit objects individually, which means not having to lump changes across several files into a single commit. Use =git commit <filename>= to specifically commit a certain file.
