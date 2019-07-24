@@ -1,0 +1,32 @@
+#+TITLE: Learning to use git/github
+
+* Sources
+
++ [[https://kbroman.org/github_tutorial/pages/first_time.html][Karl Broman's git/Github guide]]
++ Github's in-built message upon creating a new repository.
+
+* Notes
+
++ it doesn't seem to be possible to create new Github repositories from the terminal. will have to create them using the web-interface and then push to them from the command line.
++ the procedure is as follows:
+
+#+BEGIN_SRC 
+git init
+git add <filename>
+git commit -m "message"
+git remote add origin git@github.com/<Github username>/<reponame>.git
+git push -u origin master
+#+END_SRC
+
++ the =init= command creates an empty git repository.
++ (my opinion: keep things that are related in the same directory which contains the relevant .git repository)
++ the =add= commands adds the given file; ie the file will be pushed/tracked/versioned henceforth.
++ (implication?) not every file in the directory containing the .git will be pushed to Github; only the ones which are added to the git tree (?)
++ the =commit= command records all the changes to the repository.
++ (my visualization): I think of it like a snapshot
++ =git remote add= hooks up the local git repository to the remote one
++ =git push= pushes the snapshots to remote.
+
+* Questions
+
++ I don't understand the following: /origin/, /master/, /branch/, /pull/.
