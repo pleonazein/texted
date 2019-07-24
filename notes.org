@@ -1,0 +1,60 @@
+#+TITLE: Notes on Building a Texteditor
+
+* Notes
+
+** Commit 1
+
++ created =main=.
++ compiled using a Makefile. Makefiles help automate the process of compilation; simply running =./make= in the folder containing the Makefile will compile according to specifications.
+#+BEGIN_SRC 
+kilo.c: kilo
+    $(CC) kilo.c -o kilo -Wall -Wextra -pedantic -std=c99
+#+END_SRC
++ the final executable is in a file named /kilo/; running =./kilo= yields nothing, however the final return value can be checked in the shell by running =echo $?=.
+
+*** TODO Ponderables [0/2]:
+
++ [ ] how are Makefiles structured? (what is meant by =kilo.c: kilo= etc.)
++ [ ] what is =?= in the shell?
++ [ ] how are commit messages displayed in git, and on the Github site?
+
+** Commit 2
+
++ this commit is going to continuously read characters from the terminal's input.
++ the prototype of =read= is:
+#+BEGIN_SRC C
+ssize_t read (int file_descriptor, void *buffer, size_t nbytes);
+#+END_SRC
+
+  + read =nbytes= bytes from =file_descriptor= into the buffer.
+  + in general =read=, can read from files, with offsets etc. see =man 3 read= for more details.
+  + the value returned is the number of bytes read -- is less that =nbytes=, in case the file/pipe has fewer bytes than is requested.
+  + in our case, a successful read will have read a single byte, thus returning 1.
+
+  + The current mode in the terminal is *canonical/cooked* mode. Keyboard input is sent to the terminal only upon hitting Return.
+  + This allows for editing with Backspace etc.
+  + =C-d= and =C-c= help terminate the program. =C-d= sends the program =EOF=, indicating that there are no more bytes to be read. =C-c= terminates the process immediately.
+  + =unistd.h= provides =read= and =STDIN_FILENO=
+
+*** TODO Ponderables [2/2]:
+
++ [X] what exactly is happening when several letters are sent to the program after pressing Return? (in Canonical mode, that is)?
+*ANSWER*: I tested it out by making the loop echo back the input characters. the output is as follows:
+
++ [X] =STDIN_FILENO=. What is it?
+*ANSWER*: I made the test program print out its value -- it was 0. =unistd.h= defines it to be 0, along with =STDOUT_FILENO=(1) and =STDERR_FILENO=(2).
+
+#+BEGIN_SRC 
+> ./testkilo
+abcd RET
+a
+b
+c
+d
+
+_
+#+END_SRC
+
+** Commit 3
+
++ *raw mode* for the terminal as opposed to canonical mode, processes each keypress, does not wait for RET to be pressed for it to be sent to the program.
