@@ -57,7 +57,6 @@ _
 
 ** Commit 3
 
-+ *raw mode* for the terminal as opposed to canonical mode, processes each keypress, does not wait for RET to be pressed for it to be sent to the program.
 + this commit has the loop modified to quit upon pressing =q=. simple enough.
 + =C-d= and =C-c= work as usual.
 
@@ -101,3 +100,62 @@ _
 #+END_SRC
 
 + [ ] Understand/explain the behaviour of =C-z=.
+
+** Commit 4
+
++ *raw mode* for the terminal as opposed to canonical mode, processes each keypress, does not wait for RET to be pressed for it to be sent to the program.
++ =termios.h= provides a way of capturing and modifying the attributes of the terminal. =man termios.h= is quite enlightening.
++ the attributes of the terminal are captured in a structure, =struct termios=.
+  + =tcgetattr(fd_terminal, &target_termios_struct)= retrieves the attributes of the terminal referred to by =fd_terminal=.
+  + =tcsetattr(fd_terminal, optional_action, &source_termios_struct)= sets the attribute of the relevant terminal.
++ the termios structure is comprised of a few variables (such as =c_iflag=, =c_oflag=, =c_lflag=, =c_cflag=) each(?) of whose bits represent some attribute of the terminal.
++ by modifying these bits, and pushing them back to the terminal, changes can be effected.
+  + the =&= operator performs a bitwise and.
+  + the =~= operator performs a bitwise negation.
+  + =ECHO= is a bitfield, comprising entirely of 0s except for one bit in question.
+  + brevity goes well with sanity, so, say: =1011 & ~(0001)= --> =1011 & 1110= --> =1010=
+  + ie, the important bit in =ECHO= has been set to 0 in our target variable.
+  + the terminal will now no longer echo the characters typed in it as input (like a password prompt).
++ having modified the struct, we use =tcsetattr= to modify the terminal.
+  + =TCSAFLUSH= is one of three optional actions available. With =TCSAFLUSH=, the changes are applied after all output to =fd_terminal= has been transmitted, and any remaining input is discarded.
+  + the other optional actions are: =TCSANOW= (apply all changes immediately) and =TCSADRAIN= (apply changes after all output has been written) 
++ after the program ends, the terminal still retains its modification -- the prompt will not echo input.
+  + interestingly, the terminal does not respond to =C-l=! (I guess it's just treated as an ASCII character; input =abcq C-l RET= clears the screen)
+  + even more interestingly, after having quit the program, RET causes the prompt to be duplicated without a newline ...
+
+#+BEGIN_SRC 
+> > > > >
+#+END_SRC
+
++ use the =reset= command to reset the terminal to its usual behaviour.
+
+*** Ponderables [3/5]:
+
++ [ ] what does =FILENO= signify? what else could it be?
++ [ ] (vague) recall the following problem with login shells (or ssh?): sometimes, there is a noticeable lag between getting logged in and the prompt being available -- I believe this has resulted in passwords being exposed partially and even executed. Maybe this can be set right with some of these flush capabilities provided by termios.h. Document this aberration the next time it happens.
++ [X] (easy) =&== with a bitfield sets the high bits in the operand2 to 0; how does one reverse the operation (ie, the bits that are high in the bitfield must be high in the target variable)?
+*ANSWER*: =var |=bitfield=
++ [X] (meta) come up with a better number to illustrate these bitwise operations instead of something arbitrary!
+*ANSWER*: let =var = 1010= and =bitfield = 1100=. 
++ [X] what do =var &=bitfield= and =var |=~(bitfield)= do?
+*ANSWER*: For the sake of completeness and pattern finding, I shall do all four combinations:
+#+BEGIN_SRC 
+1010 & 1100 --> 1000
+1010 | 1100 --> 1110
+1010 & ~(1100) --> 1010 & 0011 --> 0010
+1010 | ~(1100) --> 1010 | 0011 --> 1011
+#+END_SRC
+
+|------------------+----------------------------------------------------------|
+| action           | interpretation                                           |
+|------------------+----------------------------------------------------------|
+| =a&=b=           | filter the bits that are high in both, set the rest to 0 |
+| =a \vert = b=    | set high the high bits in =b=, keep rest unchanged       |
+| =a&=~(b)=        | set low the high bits in =b=                             |
+| =a \vert = ~(b)= | set high the low bits in =b=, keep rest unchanged        |
+|------------------+----------------------------------------------------------|
+(I'm still unhappy with the asymmetry).
+
++ [ ] for what scenario will the presence/absence of =TCSAFLUSH= modify the program's behaviour?
+
+** 
