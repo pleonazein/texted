@@ -154,7 +154,8 @@ _
 | =a \vert = b=    | set high the high bits in =b=, keep rest unchanged       |
 | =a&=~(b)=        | set low the high bits in =b=                             |
 | =a \vert = ~(b)= | set high the low bits in =b=, keep rest unchanged        |
-|------------------+----------------------------------------------------------|9
+|------------------+----------------------------------------------------------|
+
 (I'm still unhappy with the asymmetry).
 
 + [ ] for what scenarioIn C++ the answer is different, because objects can delete temporary files and so forth in their destructors, so you need to make sure those get called.
