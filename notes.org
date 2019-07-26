@@ -31,12 +31,12 @@ ssize_t read (int file_descriptor, void *buffer, size_t nbytes);
   + the value returned is the number of bytes read -- is less that =nbytes=, in case the file/pipe has fewer bytes than is requested.
   + in our case, a successful read will have read a single byte, thus returning 1.
 
-  + The current mode in the terminal is *canonical/cooked* mode. Keyboard input is sent to the terminal only upon hitting Return.
+  + The current mode in the terminal is *canonical/cooked* mode. Keyboard input is sent to the terminal only upon hitting RET or =C-d= (EOF).
   + This allows for editing with Backspace etc.
   + =C-d= and =C-c= help terminate the program. =C-d= sends the program =EOF=, indicating that there are no more bytes to be read. =C-c= terminates the process immediately.
   + =unistd.h= provides =read= and =STDIN_FILENO=
 
-*** TODO Ponderables [2/2]:
+*** DONE Ponderables [2/2]:
 
 + [X] what exactly is happening when several letters are sent to the program after pressing Return? (in Canonical mode, that is)?
 *ANSWER*: I tested it out by making the loop echo back the input characters. the output is as follows:
@@ -61,7 +61,7 @@ _
 + =C-d= and =C-c= work as usual.
 
 
-*** TODO Ponderables [3/3]:
+*** DONE Ponderables [3/3]:
 
 + [X] does the program quit on /immediate/ reception of a /q/, or until RET is pressed?
 *ANSWER*: the terminal is still in canonical mode, therefore inputs are processed only upon receipt of a RET.
@@ -103,6 +103,7 @@ _
 
 ** Commit 4
 
++ in this commit, we modify the terminal characteristics to stop it from echoing input.
 + *raw mode* for the terminal as opposed to canonical mode, processes each keypress, does not wait for RET to be pressed for it to be sent to the program.
 + =termios.h= provides a way of capturing and modifying the attributes of the terminal. =man termios.h= is quite enlightening.
 + the attributes of the terminal are captured in a structure, =struct termios=.
@@ -129,7 +130,7 @@ _
 
 + use the =reset= command to reset the terminal to its usual behaviour.
 
-*** Ponderables [3/5]:
+*** TODO Ponderables [3/5]:
 
 + [ ] what does =FILENO= signify? what else could it be?
 + [ ] (vague) recall the following problem with login shells (or ssh?): sometimes, there is a noticeable lag between getting logged in and the prompt being available -- I believe this has resulted in passwords being exposed partially and even executed. Maybe this can be set right with some of these flush capabilities provided by termios.h. Document this aberration the next time it happens.
@@ -153,9 +154,54 @@ _
 | =a \vert = b=    | set high the high bits in =b=, keep rest unchanged       |
 | =a&=~(b)=        | set low the high bits in =b=                             |
 | =a \vert = ~(b)= | set high the low bits in =b=, keep rest unchanged        |
-|------------------+----------------------------------------------------------|
+|------------------+----------------------------------------------------------|9
 (I'm still unhappy with the asymmetry).
 
-+ [ ] for what scenario will the presence/absence of =TCSAFLUSH= modify the program's behaviour?
++ [ ] for what scenarioIn C++ the answer is different, because objects can delete temporary files and so forth in their destructors, so you need to make sure those get called.
 
-** 
+ z will the presence/absence of =TCSAFLUSH= modify the program's behaviour?
+
+** Commit 5
+
++ our next step involves resetting the terminal to its original state when the program exits.
++ to do this, we capture the original state of the terminal in a global struct variable, =original_termios=;
++ inside =enterRawMode= a copy of this variable is created, modified and then applied.
++ a simple function =disableRawMode= to reset the terminal to its original state is written using  =tcsetattr= and =original_termios=.
++ before the program exits, =disableRawMode= ought to be called.
+  + my first approach is to call =disableRawMode= once the loop has been broken, ie encountering =C-d= or /q/. It works as expected.
+  + unused input queue is *not* sent to the next terminal prompt; I presume this is a consequence of =TCSAFLUSH=.
++ the tutorial uses =atexit= from =stdlib.h= to call =disableRawMode= when the program terminates.
+  + =atexit= takes a function pointer as an argument and calls this when the program is being terminated.
+  + several =atexit= functions may be registered (upto 32), and these are called in their "order of registration" (what's that?)
+  + =atexit()= can be placed anywhere in the program -- in the tutorial, it is placed right inside =enableRawMode= as =atexit(disableRawMode);=.
+  + I have chosen not to follow this; I shall disable raw mode before returning from the main.
+
+*** TODO Ponderables [2/5]:
+
++ [X] what happens when =disableRawMode= is run after =return 0;=?
+*ANSWER*: it is not called.
+
++ [X] how does the program behave with the exit techniques you are aware of?
+*ANSWER*: refer to the table below. =nodisable= does not call =disableRawMode= before =return 0;=, =yesdisable= does. the field =echo= documents whether the terminal echoes input after the program has been terminated; =trailing= documents whether remaining elements in the input queue are sent to the prompt after program termination.
+
+|------------+-----------+------+----------|
+| program    | input     | echo | trailing |
+|------------+-----------+------+----------|
+| nodisable  | =abcqdef= | no   | yes      |
+| nodisable  | =C-d=     | no   | --       |
+| nodisable  | =C-c=     | yes  | --       |
+| nodisable  | =C-z=     | yes  | --       |
+| yesdisable | =abcqdef= | yes  | no       |
+| yesdisable | =C-d=     | yes  | --       |
+| yesdisable | =C-c=     | yes  | --       |
+| yesdisable | =C-z=     | yes  | --       |
+|------------+-----------+------+----------|
+
++ [ ] what is the difference between simply calling =disableRawMode= before returning from main, and calling it in an =atexit()= context?
+*ANSWER*: (incomplete) I suspect it has something to do with the various ways in which a program can be terminated (SIGKILL, SIGTERM etc).
++ [ ] after suspending and bringing this program to the foreground (=C-z=, =fg=); and after terminating with =C-c=, the echo characteristics are restored. Why?
+*ANSWER*: (UNSOLVED) I spent a lot of time on this, going through how signals are handled, some kernel source code, and running =strace -p #PID= on my process and observing what happens when =SIGINT/SIGTSTP= are sent. it's worth noting that =read()= is a system call that is being interrupted, and these may be handled differently. my current belief is that the signal handler of something restores sane defaults upon terminating/ resuming the process.
+
+by the way, =strace= is a great tool!
+
++ [ ] (optional) what is =brk(NULL)= that is seen in the output of =strace=?
