@@ -206,3 +206,70 @@ _
 by the way, =strace= is a great tool!
 
 + [ ] (optional) what is =brk(NULL)= that is seen in the output of =strace=?
+
+** Commit 6
+
+
++ in this commit, we try disabling canonical mode.
++ cannonical mode has the following properties (from =man termios=):
+  + input is available line by line; and is only processed on RET or EOF.
+  + input lines can be edited, by say, backspace
++ the /c_lflag/ =ICANON= can be used to set the terminal to noncanonical mode.
++ in noncanonical mode, input is available immediately without the user having to press RET/EOF
++ line editing is not possible in noncanonical mode; with characters such as =BSPC=, =C-d=, =C-l= not being processed and being printed on screen.
++ =C-c= does work, as usual (I suspect this is because it's handled by a signal handler somewhere).
+
++ The tutorial proceeds by disabling both echoing and canonical modes; however I have opted not to do the same because echoing is useful to understanding what is happening.
++ =ICANON= is flipped and set.
++ (without diagnostic messages, which I will get to in a bit) One clear consequence of running in noncanonical mode is that pressing =q= /immediately/ terminates the program -- the read loop is not awaiting a RET/EOF to process its input; the /q/ is almost immediately available to the program once it has been pressed.
+
+(note: no diagnostic messages inside loop)
+#+BEGIN_SRC 
+> ./icanon
+blueq >_
+#+END_SRC
+
++ *on diagnostic messages with =printf=*
+  + as in the previous commits, I was printing each character received as a n input using the =printf= command.
+  + however, the output of using a =printf= in noncanonical mode was counterintuitive.
+
+I expected the output to be as follows:
+#+BEGIN_SRC 
+> ./icanon
+bblluuee  cchheessee_
+#+END_SRC
+, which is reasonable because each character must be printed immediately upon receipt, since each character is immediately available upon input.
+
+However, what I observed was the following (with =printf=):
+#+BEGIN_SRC 
+> ./icanon
+blue cheese RET
+blue cheese_
+#+END_SRC
+
+, which does not look like canonical mode at all.
+
+After some (much) pondering, I realized that the culprit might be =printf=, which is not a system call, and may be behaving in some "wait-until-the-coast-is-clear-way", and that I should look for a syscall equivalent of =read=. 
+
+Cue =write= (=man 2 write=); and now the print diagnostic runs as I expect it to: =bblluueecchheessee_=
+
+This was a cool discovery.
+
+*** TODO Ponderables [2/3]:
+
++ [ ] so what about all those previous diagnostics with =printf=, do you want to do them again? do you expect them to change?
+*ANSWER*: "I want to, but I won't, therefore I shan't." (TODO: latinize this)
+
+as to change, I do not expect there to be a lot of change, since the program was running in canonical mode, where the input was not available immediately anyway.
+
++ [X] why does =printf= behave so?
+*ANSWER*: [[https://stackoverflow.com/questions/1716296/why-does-printf-not-flush-after-the-call-unless-a-newline-is-in-the-format-strin][SO: Why does printf not flush unless a newline is in the format string?]]
+
+=stdout= is typically buffered, and prints its output when told to/ when it meets a newline. this /might/ explain some oddities that I might have observed had I persisted with =printf= containing a newline in its output. 
+
+Also worth noting that a newline flushes the buffer only when writing to =stdout=, the buffer is not flushed when writing to a file ...
+
++ [X] when running with =printf=, RET /does/ cause the inner-loop printing to happen. why?
+*ANSWER*: (incomplete) some sort of flushing mechanism? Yes, see answer above.
+
+
