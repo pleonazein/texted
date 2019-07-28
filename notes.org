@@ -229,7 +229,7 @@ by the way, =strace= is a great tool!
 blueq >_
 #+END_SRC
 
-+ *on diagnostic messages with =printf=*
++ *on diagnostic messages with printf*
   + as in the previous commits, I was printing each character received as a n input using the =printf= command.
   + however, the output of using a =printf= in noncanonical mode was counterintuitive.
 
@@ -255,9 +255,9 @@ Cue =write= (=man 2 write=); and now the print diagnostic runs as I expect it to
 
 This was a cool discovery.
 
-*** TODO Ponderables [2/3]:
+*** TODO Ponderables [3/3]:
 
-+ [ ] so what about all those previous diagnostics with =printf=, do you want to do them again? do you expect them to change?
++ [X] so what about all those previous diagnostics with =printf=, do you want to do them again? do you expect them to change?
 *ANSWER*: "I want to, but I won't, therefore I shan't." (TODO: latinize this)
 
 as to change, I do not expect there to be a lot of change, since the program was running in canonical mode, where the input was not available immediately anyway.
@@ -272,4 +272,72 @@ Also worth noting that a newline flushes the buffer only when writing to =stdout
 + [X] when running with =printf=, RET /does/ cause the inner-loop printing to happen. why?
 *ANSWER*: (incomplete) some sort of flushing mechanism? Yes, see answer above.
 
+** Commit 7
+
++ in this part of the tutorial, we want to display the keys being pressed. The tutorial uses =printf()= to do the job, and the issue of the flushing is cleverly hidden with the formatting string containing a =%d=.
++ I agree that =printf()= is the way to go, since =write= seems to be more unwieldy.
++ we add a header file, =ctypes.h=. this provides functions for determining whether a character is of various types (numeric, alphanumeric, uppercase, lowercase etc); we are interested in using =iscntrl=, which determines if it is a control character.
+
++ as observed before, keypresses with control in them are not always respected in canonical mode (except for =C-c= and =C-z= which send signals that are handled by ... something, ie not our program).
+
++ Pressing arrow keys, PgUp, PgDn, Home, End etc produce 3-4 byte outputs. These are called /escape sequences./ They start with a /27/ byte, which is the code for ESC, followed by 91, which is '['.
+
+| input        | output       |
+|--------------+--------------|
+| ESC          | 27           |
+| RET          | 10           |
+| Up           | 27 91 65     |
+| Dn           | 27 91 66     |
+| Left         | 27 91 68     |
+| Right        | 27 91 67     |
+| PgUp         | 27 91 53 126 |
+| PgDn         | 27 91 54 126 |
+| Home         | 27 91 55 126 |
+| End          | 27 91 56 126 |
+| BSPC         | 127          |
+| C-a to C-y * | 1 to 25      |
+| C-0 to C-9   | wut          |
+|--------------+--------------|
+
++ +some+ a lot of the control sequences behave unusually (this is apart from =C-c= and =C-z=):
+  + =C-s= handles [[https://en.wikipedia.org/wiki/Software_flow_control][software flow control]], which stops transmission of data to the terminal (holding it in a buffer). =C-q= resumes transmission of data, and the characters typed in between are processed in one go.
+  + =C-j= and =C-m= output 10, which is RET. this also works in the shell.
+  + =C-4= produces the output /Quit/, and the program terminates.
+  + =C-0= and =C-1= output the ASCII values of 0 and 1 respectively (48, 49); =C-2= produces 0, =C-9= produces 9
+  + =C-8= produces 127 (backspace) (=C-7= works as undo in bash, but not in this program)
+  + the rest of the numerals produce values from 27 onwards ...
+  + =C-v= works sort of like passthrough mode in bash, but this program does not register it as something special.
+
+*** Ponderables [1/4]:
+
++ [ ]  how did =write()= know how to format the a /c/ as a character?
+*ANSWER*: =write= knows nothing about formatting its output. its prototype is:
+=write(filedescriptor, start_address, num_bytes)=
+
+It writes to the location described by the file descriptor, by dumping /num_bytes/ from /start_address/ to it. (if there are fewer than /num_bytes/ available, it transfers that.)
+
+The decision to print as a character/ binary/ hexadecimal etc, is some setting in the terminal emulator, I think.
+
+I should try to print an integer using =write= (4 bytes) and see what the output looks like: I ran a loop until an arbitrarily high integer value, displaying both the integer and what it printed to the screen when written with =write=. A small sample:
+
+#+BEGIN_SRC 
+...
+AÃ i: 49985
+BÃ i: 49986
+CÃ i: 49987
+DÃ i: 49988
+EÃ i: 49989
+...
+#+END_SRC
+
+It's interesting that the increase is reflected in the character on the left; I suspect this has something to do with endianness. 
+
++ [ ] why did the test program above show increments by changing the left most character? 
+
++ [X] =iscntrl()= is supposed to take an integer as an argument, but is okay with receiving a character as its input. what is happening?
+*ANSWER*: (solved) +typecasting? am I misunderstanding the way characters and integers are handled/interpreted? is the compiler glossing over this type mismatch?+ 
+
+don't forget that in C, chars are 8bit ints, and types can get promoted up (safely?). This type promotion is something done automatically by the compiler, nothng to worry about.
+
++ [ ] what on earth is happening with the arbitrary mappings of Control + numerals?!
 
