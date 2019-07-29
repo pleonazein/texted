@@ -18,6 +18,7 @@ void enableRawMode() {
   tcgetattr(STDIN_FILENO, &original_termios);
   struct termios raw = original_termios;
   raw.c_iflag &= ~(ICRNL|IXON);
+  raw.c_oflag &= ~(OPOST);
   raw.c_lflag &= ~(ECHO|ICANON|ISIG);
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
@@ -29,9 +30,9 @@ int main() {
   
   while (read(STDIN_FILENO, &c, 1) == 1 && c!= 'q') {
     if(iscntrl(c)) {
-      printf("%d\n", c);
+      printf("%d\r\n", c);
     } else {
-      printf("%d ('%c')\n", c, c);
+      printf("%d ('%c')\r\n", c, c);
     }
   }
   disableRawMode();
