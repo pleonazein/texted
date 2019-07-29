@@ -19,7 +19,12 @@ void enableRawMode() {
   struct termios raw = original_termios;
   raw.c_iflag &= ~(ICRNL|IXON);
   raw.c_oflag &= ~(OPOST);
-  raw.c_lflag &= ~(ECHO|ICANON|ISIG);
+  raw.c_lflag &= ~(ECHO|ICANON|ISIG|IEXTEN);
+
+  // the following are miscellaneous flags that are disabled
+  raw.c_iflag &= ~(BRKINT | INPCK | ISTRIP);
+  raw.c_cflag |= (CS8);
+  
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
