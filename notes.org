@@ -374,3 +374,48 @@ don't forget that in C, chars are 8bit ints, and types can get promoted up (safe
 
 + [X] so apparently, RET is ASCII 13 and not 10. for some reason, the program was displaying a 10 all this while; disabling ICRNL, led to RET becoming 13. what's happening?
 *ANSWER*: I believe this has to do with the gradual semantic blending of newline and carriage return. this must have something to do with teletype legacy. anyway, =C-m= is 13 (newline) and =C-j= is RET.
+
+** Commit 9
+
++ in this commit we turn off output processing
++ I understand the distinction between what we did before and now as: input processing is the changes the terminal makes to the input before passing it on to the program; output processing is processing the output of the program so that it appears in a certain way on our terminal
++ better explained by the following example: the terminal translates '\n' to '\r\n'; ie a newline does not just go down to the line below, but resets the cursor to the very start of the line. turning off output processing will disable this behaviour.
++ modifying the =OPOST= bit in the =c_oflag= should do the trick.
++ =OPOST=: perform implementation-defined output processing. disabling this flag will also disable all the other flags in =c_oflag=.
+
+having disabled =OPOST=, the output on pressing keys (here RET) looks like this:
+
+#+BEGIN_SRC 
+>./kilo
+13
+  13
+    13
+      13
+        13
+          _
+#+END_SRC
+
++ actually, the output looks like this regardless of what keys are pressed. This is because the escape sequence in our =printf()= is a newline, '\n'.
++ this is readily remedied by modifying it to '\r\n'.
++ a great mnemonic for remembering '\r\n' is to think of the word /return/ -- 'r' precedes 'n'.
+
+
+*** TODO Ponderables [1/1]:
+
++ [X] (fun!) what would happen if I used '\n\r' instead of '\r\n'?
+*ANSWER*: since the behaviour is a bit confusing, I first tried replacing '\r\n' with '\r' -- this brings the curson back to the start of the line, and overwrites previous output with new input.
+
+with completely replacing with '\n\r', the behaviour is not the same as the original -- recall that this is because =printf()= buffers its output, and requires a newline ('\n') to flush its output leading to output like the following:
+
+#+BEGIN_SRC 
+>./output_altret
+97 ('a')
+97 ('a')
+13
+97 ('a')
+        _
+#+END_SRC
+
+using an =fflush(stdout)= after printing restores sane behaviour.
+(I'm not sure I have explained the above behaviour though ...)
+
