@@ -419,3 +419,13 @@ with completely replacing with '\n\r', the behaviour is not the same as the orig
 using an =fflush(stdout)= after printing restores sane behaviour.
 (I'm not sure I have explained the above behaviour though ...)
 
+** Commit 10
+
++ we disable several miscellaneous flags, to achieve that true raw mode ...
++ some of these are hard to explain, and the effects are not very tangible, so I will be brief
+  + =BRKINT= (c_iflag): older terminals had a physical BREAK key, which worked like a SIGINT key by sending 0 bits to the terminal driver for specified amounts of time -- this was used to signal the correct baud rate for the terminal ...
+  + =INPCK= (c_iflag): input parity check
+  + =INSTRIP= (c_iflag): strip bit 8 from input characters. (why was this a thing). okay wow: the original ASCII set was 7-bit, representing 128 possible glyphs; char thus has an extra bit, and this can be stripped ...
+  + =CS8= (c_cflag): character size mask (other possible values are CS5,CS6,CS7). I'm not sure what this does, but it might have something to do with alternate definitions of chars, back in the day. since we want to deal with 8-bit chars, we set this flag ON, using the =|== bitfield technique discussed way back.
+
+
