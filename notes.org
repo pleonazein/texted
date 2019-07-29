@@ -255,7 +255,7 @@ Cue =write= (=man 2 write=); and now the print diagnostic runs as I expect it to
 
 This was a cool discovery.
 
-*** TODO Ponderables [3/3]:
+*** DONE Ponderables [3/3]:
 
 + [X] so what about all those previous diagnostics with =printf=, do you want to do them again? do you expect them to change?
 *ANSWER*: "I want to, but I won't, therefore I shan't." (TODO: latinize this)
@@ -285,7 +285,7 @@ Also worth noting that a newline flushes the buffer only when writing to =stdout
 | input        | output       |
 |--------------+--------------|
 | ESC          | 27           |
-| RET          | 10           |
+| RET          | 10 (!)       |
 | Up           | 27 91 65     |
 | Dn           | 27 91 66     |
 | Left         | 27 91 68     |
@@ -301,7 +301,7 @@ Also worth noting that a newline flushes the buffer only when writing to =stdout
 
 + +some+ a lot of the control sequences behave unusually (this is apart from =C-c= and =C-z=):
   + =C-s= handles [[https://en.wikipedia.org/wiki/Software_flow_control][software flow control]], which stops transmission of data to the terminal (holding it in a buffer). =C-q= resumes transmission of data, and the characters typed in between are processed in one go.
-  + =C-j= and =C-m= output 10, which is RET. this also works in the shell.
+  + =C-j= and =C-m= output 10, which is RET. this also works in the shell. (see later explanation of these)
   + =C-4= produces the output /Quit/, and the program terminates.
   + =C-0= and =C-1= output the ASCII values of 0 and 1 respectively (48, 49); =C-2= produces 0, =C-9= produces 9
   + =C-8= produces 127 (backspace) (=C-7= works as undo in bash, but not in this program)
@@ -341,3 +341,36 @@ don't forget that in C, chars are 8bit ints, and types can get promoted up (safe
 
 + [ ] what on earth is happening with the arbitrary mappings of Control + numerals?!
 
+** Commit 8
+
++ in this commit, we want to disable our program from being interrupted by signals.
++ =termios.h= provides a way of disabling this: by flipping a certain bit in the /input mode flag/ =c_iflag=. The relevant flag constant is given by =ISIG=.
++ from the man page for termios: /when any of the characters INTR, QUIT, SUSP or DSUSP are received, generate the corresponding signal.
++ INTR: =C-c=, QUIT: =C-\=, SUSP: =C-z=
++ DSUSP is delayed suspend, which waits for the next read cycle to start suspending. This does not work on linux, but exists on Macs as =C-y=
+
++ disabling =C-s= and =C-q=, the software flow control: can be unset by modifying the =IXON= bit in the =c_iflag= mode. XON/XOFF are the names of =C-q= and =C-s=, standing for transmission ON and transmission OFF.
+
++ disabling =C-v=, which enables passing values literally. Flip the =IEXTEN= bit in =c_iflag=.
++ =C-v= is called LNEXT or literal next. to pass =C-c= to the process instead of invoking the signal handler, press =C-v C-c=. (=C-v= did nothing in my program before I disabled it ...)
++ =IEXTEN=: Enable implementation-defined input processing. This flag, as well as =ICANON= must be enabled for the special characters EOL2, LNEXT, WERASE to be interpreted, and for the IUCLC flag to be effective.
+  + I don't understand what any of this says.
+  + EOL and EOL2 are additional characters that can behave like newlines. These are usually undefined and rarely used (an exception being telnet, where =~= / =C-]= are alternate characters.
+  + WERASE is word erase; erases to the end of the previous word
+  + IUCLC -- maps upper case to lower case on input
+
+
++ =C-m= produces a 10, which is RET; =C-j= also produces a 10 (which is also in line with what control+alphabets are supposed to do)
++ =C-m= produces a carriage return, '\r'; which the terminal reinterprets as new line. Carriage return (CR) brings the cursor back to the start of the line.
++ note that the distinction between newline and carriage return has been melded over the years.
++ the terminal helpfully converts the carriage return to the new line; this can be fixed by setting the =ICRNL= bit in =c_iflag= which results in =C-m= printing as 13, as it ough to.
+
+*** TODO Ponderables [2/3]:
+
++ [ ] write a signal handler; instead of blocking all signals.
+
++ [X] why does =C-v= not work in my program even without disabling =IEXTEN=?
+*ANSWER*: LNEXT is interpreted only in canonical mode.
+
++ [X] so apparently, RET is ASCII 13 and not 10. for some reason, the program was displaying a 10 all this while; disabling ICRNL, led to RET becoming 13. what's happening?
+*ANSWER*: I believe this has to do with the gradual semantic blending of newline and carriage return. this must have something to do with teletype legacy. anyway, =C-m= is 13 (newline) and =C-j= is RET.
