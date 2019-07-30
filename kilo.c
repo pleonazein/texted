@@ -24,22 +24,32 @@ void enableRawMode() {
   // the following are miscellaneous flags that are disabled
   raw.c_iflag &= ~(BRKINT | INPCK | ISTRIP);
   raw.c_cflag |= (CS8);
+
+  // read timeouts:
+  raw.c_cc[VMIN] = 0;
+  raw.c_cc[VTIME] = 1;
   
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
 int main() {
-  char c;
 
   enableRawMode();
-  
-  while (read(STDIN_FILENO, &c, 1) == 1 && c!= 'q') {
-    if(iscntrl(c)) {
-      printf("%d\r\n", c);
-    } else {
-      printf("%d ('%c')\r\n", c, c);
-    }
+
+  char c;
+
+  while(1) {
+    c='\0';
+
+    read(STDIN_FILENO, &c, 1);
+    if( iscntrl(c) )
+      printf("%d\r\n",c);
+    else
+      printf("%d ('%c')\r\n",c,c);
+    if(c == 'q')
+      break;
   }
+  
   disableRawMode();
   return 0;
 }
