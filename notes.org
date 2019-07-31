@@ -173,7 +173,7 @@ _
   + unused input queue is *not* sent to the next terminal prompt; I presume this is a consequence of =TCSAFLUSH=.
 + the tutorial uses =atexit= from =stdlib.h= to call =disableRawMode= when the program terminates.
   + =atexit= takes a function pointer as an argument and calls this when the program is being terminated.
-  + several =atexit= functions may be registered (upto 32), and these are called in their "order of registration" (what's that?)
+  + several =atexit= functions may be registered (upto 32), and these are called in their "order of registration" (what's that? I think these functions are registered in the order in which they are encountered in program flow; implying it is possible that some atexit functions may not be called at all by not traversing the branch in which it is defined.)
   + =atexit()= can be placed anywhere in the program -- in the tutorial, it is placed right inside =enableRawMode= as =atexit(disableRawMode);=.
   + I have chosen not to follow this; I shall disable raw mode before returning from the main.
 
@@ -386,7 +386,7 @@ don't forget that in C, chars are 8bit ints, and types can get promoted up (safe
 having disabled =OPOST=, the output on pressing keys (here RET) looks like this:
 
 #+BEGIN_SRC 
->./kilo
+> ./kilo
 13
   13
     13
@@ -400,7 +400,7 @@ having disabled =OPOST=, the output on pressing keys (here RET) looks like this:
 + a great mnemonic for remembering '\r\n' is to think of the word /return/ -- 'r' precedes 'n'.
 
 
-*** TODO Ponderables [1/1]:
+*** DONE Ponderables [1/1]:
 
 + [X] (fun!) what would happen if I used '\n\r' instead of '\r\n'?
 *ANSWER*: since the behaviour is a bit confusing, I first tried replacing '\r\n' with '\r' -- this brings the curson back to the start of the line, and overwrites previous output with new input.
@@ -408,7 +408,7 @@ having disabled =OPOST=, the output on pressing keys (here RET) looks like this:
 with completely replacing with '\n\r', the behaviour is not the same as the original -- recall that this is because =printf()= buffers its output, and requires a newline ('\n') to flush its output leading to output like the following:
 
 #+BEGIN_SRC 
->./output_altret
+> ./output_altret
 97 ('a')
 97 ('a')
 13
@@ -468,8 +468,7 @@ this works just as before, but there isn't a way of knowing something has change
 + the char variable =c= is set to '\0' in the body of the loop; which means in case the read times out, there will be a stream of 0s printed out.
 + however, on receipt of input, the character 0 will be replaced by =read= (the assignment to 0 should come before =read= is called), and it is processed/output to the screen as before.
 
-
-*** Ponderables [0/2]:
+*** TODO Ponderables [0/2]:
 
 + [ ] why does the tutorial go with VMIN=0 and VTIME=1? this is the serial-modem style of awaiting input, but why?
 + [ ] observe the different parameters and how they affect output.
@@ -481,5 +480,89 @@ I have modified the program to read into a 4byte integer; it works as usual for 
 I have fooled around with reading and printing multibyte input to integers with both =read= and =scanf=. it suffices to say that I do not understand anything of what is happening. 
 
 I think I will come back to this later. I shall also abandon the quest for nonzero VMIN/VTIME behaviour, until I understand how to capture multibyte inputs, especially with =read=.
+
+** Commit 12
+
++ in this commit we add some error-handling capabilities to our program.
++ the =errno.h= header file provides a number of useful constants for error codes defined up to some POSIX standard.
++ we add =stdlib.h= for =exit()=, which terminates the calling process immediately, closing file descriptors, calling =atexit= registered functions etc. this function takes an integer as its argument, which can be used for further diagnosing the cause of a failed exit.
++ =perror()= is defined in =stdio.h=. It produces a message on standard error describing the last error encountered during a call to a system or library function; when syscalls fail, they return -1 and set the variable =errno= to a value; =perror= takes a string as an argument, and can thus be used to set describe where the error occurred; in addition, it interprets =errno= to a human understandable form. (related, =strerror=)
++ we combine =perror()= and =exit()= in a function =die()= that is called whenever a system call fails. the system calls of interest are =tcgetattr=, =tcsetattr= and =read=. in each case, =perror= is called with the name of the function as a string argument, followed by =exit(1)=. recall that we can investigate values returned using the shell's =echo $?=.
++ while checking whether =read= has occurred successfully, we need to distinguish between =read= returning a zero because of timeout, and the function actually failing.
++ (from =man termios=: "furthermore, if no data is available, POSIX permits a =read(2)= in canonical mode to return either 0, or -1, with =errno= set to =EAGAIN=.
++ =EAGAIN= stands for "Resource unavailable, try again". this is not a fatal error for a polling process, therefore we try to exclude it from hitting the function =die=. in the apt words of @A "this is not really an error worth dying over" (:
+
+*** Ponderables [4/4]:
+
++ [X] that's all fine and dandy, but how do I generate errors?
+*ANSWER*: the book suggests using a pipe or a file as input to the program, so say =echo test_text | ./kilo= and =./kilo < test_file=. as advertised both of these methods fail with the following message:
+=tcgetattr() failure: Inappropriate ioctl for device=
+
++ [ ] what does that mean, "Inappropriate ioctl for device"?
+*ANSWER*: I don't know. I searched =errno= for this error, and couldn't find it. I could print the =errno= value to see what is up -- I did, and it's 25. I tried finding the files where these error values are defined (in all error related headers in =/usr/include= and =/usr/include/bits/=) to no avail. Googling suggested that 25 is =ENOTTY=, defined in =man ioctl= as:
+
+#+BEGIN_SRC 
+ENOTTY fd is not associated with a character special device.
+
+ENOTTY The specified request does not apply to the kind of object that the file descriptor fd references.
+#+END_SRC
+
+Makes sense, even though I don't know the details.
+
++ [X] how does the program handle holding down a key?
+*ANSWER*: this is interesting. at first there is only one keypress registered, followed by 6 zeroes, and then a continuous stream of registered keypresses. sample output upon holding down RET:
+#+BEGIN_SRC 
+> ./kilo
+0
+0
+0
+13
+0
+0
+0
+0
+0
+0
+13
+13
+13
+13
+13
+113 ('q')
+> _
+#+END_SRC
++ [X] follow up: explain the 6.
+*ANSWER*: is this due to =xset= or due to VTIME? changing =xset= because it's easier to change.
+#+BEGIN_SRC 
+> xset q
+...
+auto repeat delay: 660 repeat rate: 25
+...
+> xset r rate 330 25
+> ./kilo
+0
+0
+0
+13
+0
+0
+0
+13
+13
+13
+13
+13
+113 ('q')
+> _
+#+END_SRC
+
+in other words, halving the repeat delay halved the number of 0s before which a repeat keypress occurred. that is pretty cool. 
+
+increasing the repeat rate will cause a much larger number of keypresses as I am holding down the keys.
+
++ [X] (with the default rates) it's rather hard to simulate a continuous keypress. can I improve this by increasing VTIME?
+*ANSWER*: changed VTIME to 10 (ie, read timing out only after 1 second). I definitely can type fast enough to simulate a continuous keypress. however, the rate at which 0s are produces is also once a second. holding down a key produces keypresses at the repeat rate.
+
+I also played with the =time= command which breaks down how much of the process time was user time and system time.
 
 
