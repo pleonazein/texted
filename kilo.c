@@ -6,6 +6,9 @@
 #include <termios.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
+
 
 struct termios original_termios;
 
@@ -13,9 +16,16 @@ void disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
 }
 
+void die (const char *s) {
+  perror(s);
+  exit(1);
+}
+
 void enableRawMode() {
 
-  tcgetattr(STDIN_FILENO, &original_termios);
+  if(tcgetattr(STDIN_FILENO, &original_termios) == -1)
+    die("tcgetattr() failure");
+  
   struct termios raw = original_termios;
   raw.c_iflag &= ~(ICRNL|IXON);
   raw.c_oflag &= ~(OPOST);
@@ -29,7 +39,8 @@ void enableRawMode() {
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
   
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+  if(tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+    die("tcsetattr() failure");
 }
 
 int main() {
@@ -41,7 +52,8 @@ int main() {
   while(1) {
     c='\0';
 
-    read(STDIN_FILENO, &c, 1);
+    if(read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN)
+      die("read() failure");
     if( iscntrl(c) )
       printf("%d\r\n",c);
     else
