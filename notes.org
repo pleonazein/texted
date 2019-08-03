@@ -480,6 +480,7 @@ I have modified the program to read into a 4byte integer; it works as usual for 
 I have fooled around with reading and printing multibyte input to integers with both =read= and =scanf=. it suffices to say that I do not understand anything of what is happening. 
 
 I think I will come back to this later. I shall also abandon the quest for nonzero VMIN/VTIME behaviour, until I understand how to capture multibyte inputs, especially with =read=.
+(answered later!)
 
 ** Commit 12
 
@@ -566,3 +567,34 @@ increasing the repeat rate will cause a much larger number of keypresses as I am
 I also played with the =time= command which breaks down how much of the process time was user time and system time.
 
 
+** Commit 13
+
++ first things first: answering the weird segmentation fault when I attempted to read a multibyte keypress into a 4-byte integer. (see ponderable 2 in [[Commit 11]]
++ @A told me the read was supposed to be fine, although, it didn't make sense to store in an integer (he suggested a char array of 4 bytes; more on that later).
++ from the =strace= it appeared as it the segmentation fault occurred due to the read, however, according to @A, =gdb= is the tool of choice for this.
+  + to make your program compatible with =gdb= (or at least to get useful line numbers), compile with the =-g= flag.
+  + run the program as usual
+  + in a new terminal, run =gdb -p $(pregp $nameofyourprogram)=, this opens the =gdb= interface.
+  + (btw, the =-tui= flag opens up a primitive TUI)
+  + use =c= to continue, =q= to quit
+  + learn to use this in greater detail!
++ so, using this, we were able to determine the trouble occurred, passing the integer to =iscntrl()= (which doesn't quite make sense for a multibyte object -- this function is supposed to tell if the character is a control character in the highly limited ASCII charset of 128 characters)
++ although, =iscntrl()= /does/ take an integer for its argument, it doesn't handle all integers: a quick perusal of =man 3 iscntrl= points out helpfully in the description that =these functions check whether c, which must have the value of an unsigned char or EOF, falls into a certain character class ...=.
++ why the =int= then? interesting question.
+  + these functions want to handle EOF, which is usually -1. tada
+
+
+*** META
+
++ this project has seen a week of regular work! I did have a good time; and these are some good tutorials.
++ of course, realizing that I was a week in, immediately led to two days of inactivity; but that's okay really.
++ I'm also reading some kernel stuff /very, very casually/ on the side.
++ there's a very good chance that both these endeavours die early deaths -- but the nature of /texted/ is that I can easily pick it up again thanks to the tutorial and these notes.
++ *I* (want to have) *no guilt re: unattempted/incomplete ponderables*
+
+*** TODO Ponderables [/]:
+
++ [ ] implement a multibyte input with an array of chars.
+*ANSWER*: remember that =read= (helpfully) returns the number of characters read, so that you can tell if you've read a 3-byte keypress or a 4-byte one.
+
+I probably won't implement this, given that the course itself intends on handling such keypresses in the next section.
