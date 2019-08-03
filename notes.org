@@ -468,7 +468,7 @@ this works just as before, but there isn't a way of knowing something has change
 + the char variable =c= is set to '\0' in the body of the loop; which means in case the read times out, there will be a stream of 0s printed out.
 + however, on receipt of input, the character 0 will be replaced by =read= (the assignment to 0 should come before =read= is called), and it is processed/output to the screen as before.
 
-*** TODO Ponderables [0/2]:
+*** TODO Ponderables [1/3]:
 
 + [ ] why does the tutorial go with VMIN=0 and VTIME=1? this is the serial-modem style of awaiting input, but why?
 + [ ] observe the different parameters and how they affect output.
@@ -477,7 +477,8 @@ maybe I should try to recreate this "hit the keys fast enough to recreate a mult
 
 I have modified the program to read into a 4byte integer; it works as usual for single byte input, but hits a segmentation fault when I press Up, for instance.
 
-I have fooled around with reading and printing multibyte input to integers with both =read= and =scanf=. it suffices to say that I do not understand anything of what is happening. 
++ [X] explain this above segfault.
+*ANSWER*: I have fooled around with reading and printing multibyte input to integers with both =read= and =scanf=. it suffices to say that I do not understand anything of what is happening. 
 
 I think I will come back to this later. I shall also abandon the quest for nonzero VMIN/VTIME behaviour, until I understand how to capture multibyte inputs, especially with =read=.
 (answered later!)
@@ -569,7 +570,7 @@ I also played with the =time= command which breaks down how much of the process 
 
 ** Commit 13
 
-+ first things first: answering the weird segmentation fault when I attempted to read a multibyte keypress into a 4-byte integer. (see ponderable 2 in [[Commit 11]]
++ first things first: answering the weird segmentation fault when I attempted to read a multibyte keypress into a 4-byte integer. (see ponderable 3 in [[Commit 11]]
 + @A told me the read was supposed to be fine, although, it didn't make sense to store in an integer (he suggested a char array of 4 bytes; more on that later).
 + from the =strace= it appeared as it the segmentation fault occurred due to the read, however, according to @A, =gdb= is the tool of choice for this.
   + to make your program compatible with =gdb= (or at least to get useful line numbers), compile with the =-g= flag.
@@ -590,11 +591,47 @@ I also played with the =time= command which breaks down how much of the process 
 + of course, realizing that I was a week in, immediately led to two days of inactivity; but that's okay really.
 + I'm also reading some kernel stuff /very, very casually/ on the side.
 + there's a very good chance that both these endeavours die early deaths -- but the nature of /texted/ is that I can easily pick it up again thanks to the tutorial and these notes.
-+ *I* (want to have) *no guilt re: unattempted/incomplete ponderables*
++ (I want to have) *no guilt re: unattempted/incomplete ponderables*
 
-*** TODO Ponderables [/]:
+*** TODO Ponderables [0/2]:
 
 + [ ] implement a multibyte input with an array of chars.
 *ANSWER*: remember that =read= (helpfully) returns the number of characters read, so that you can tell if you've read a 3-byte keypress or a 4-byte one.
 
 I probably won't implement this, given that the course itself intends on handling such keypresses in the next section.
+
++ [ ] (source spelunking) find out how iscntrl() is implemented -- and why it throws up a /segmentation fault,/ of all things.
+
+** Commit 14
+
++ we move to the next page of the tutorial, which is titled *Raw Input and Output*
++ the first part involves setting =C-q= to quit the program (understandable, since we want to be able to input 'q' to our texteditor)
++ my first approach would have been to change the conditional for quitting from =c == 'q'= to =c == 17= (well, I ran the program to see what the value of =C-q= was when read)
++ the tutorial follows a more curious approach:
+  + we first use a #define to define a macro; for now my undestanding of preprocessor macros is that they will be dropped in place by the preprocessor, wherever they are found
+  + this particular macro is defined as: =#define CTRL_KEY(k) ((k)& 0x1F)=
+  + ie, we appear to be applying bitwise AND of our key with this value 0x1F, which is 0b00011111 in binary.
+  + this implies nuking the top 3 bits in the character that is input
+  + for 'q', which is 113 (0b01110001), bitwise AND with 0b00011111 will yield 0b00010001, which is 17, which is indeed the value of =C-q=
+  + what sorcery is this
++ I shall follow the tutorial's method, since it does away with having to find the respective control key codes for future keymaps +and because it feels like magic+.
+
+
+*** Ponderables [1/2]:
+
++ [X] I wanted to test if this technique worked with control + capital letters too, but to my surprise I found that =C-S q= is registered as =C-q=. Explain.
+*ANSWER*: this probably has something to do with how capital alphabets are actually positioned in ASCII -- 'a' is 97, 'A' is 65. 
+
+| key | integer | binary     | after nuking | integer |
+|-----+---------+------------+--------------+---------|
+| 'a' |      97 | 0b01100001 | 0b00000001   |       1 |
+| 'A' |      65 | 0b01000001 | 0b00000001   |       1 |
+| 'z' |     122 | 0b01111010 | 0b00011010   |      26 |
+| 'Z' |      90 | 0b01011010 | 0b00011010   |      26 |
+|-----+---------+------------+--------------+---------|
+
+can transition from small letters to capital letters by flipping the 5th bit -- which adds/subtracts 32 (bits are counted from 0, TIL).
+
+so if I needed to distinguish between =C-S-q= and =C-q=, like emacs does, this way would not work.
+
++ [ ] I reverted the code to just quitting with 'q', and tried to see if the =C-S-q= type keys were registered differently -- they weren't! how does emacs do it then?
