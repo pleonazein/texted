@@ -635,3 +635,38 @@ can transition from small letters to capital letters by flipping the 5th bit -- 
 so if I needed to distinguish between =C-S-q= and =C-q=, like emacs does, this way would not work.
 
 + [ ] I reverted the code to just quitting with 'q', and tried to see if the =C-S-q= type keys were registered differently -- they weren't! how does emacs do it then?
+
+** Commit 15
+
++ this commit involves cleaning up code
++ the keypress reading mechanism in =main= will be moved to two functions, =editorProcessKeypress= and =editorReadKey=.
+
++ =editorReadKey()= is a low level function (ie not very semantic) that deals with receiving keypresses.
++ =c= stores the value read, =nread= is an integer to keep track of the status of the read operation
++ the conditional of the while loop reads a single character into =c=, and if this was successful, it breaks out of the loop.
+  + the return value of the =read= operation is stored in =nread= in the conditional itself (HINT: the return value of the assignment operator is the rvalue, or the value being assigned)
+  + if =nread= is -1 (ie, an unsuccessful read, as mentioned in =man 2 read=; =errno= is also set), we enter the body of the loop, where we further check if =nread= is -1, and if =errno= is /not/ EAGAIN
+  + if this conditional is satisfied, we call =die()=, since it appears to be a fatal error; else we loop again.
+  + (see ponderables on why we check for =nread= being -1)
++ if the read was successful, we return =c=
+
++ =editorProcessKeypress()= processes the keys received by =editorReadKey()= and acts on it -- it's a higher level, semantic function.
+  + the function calls =editorReadKey()= and stores it in a char =c=
+  + a =switch= statement for =c= is run, where, for now, we test if =c == CTRL_KEY(q)=, in which case we call =exit(0)= -- a clean exit
+  + I also modified the code to exit raw mode if the exit is due to =C-q=; which restores the terminal properties to sane values. I checked that they were indeed reset by using =diff= and a pair of =stty -a='s.
+
+
+*** Ponderables [3/3]:
+
++ [X] why do we test if =nread == -1= inside the =if= inside the loop in =editorReadKey()=?
+*ANSWER*: when reading, we are requisitioning 1 byte from STDIN; =read= returns the number of bytes read successfully. however, =read()= /can/ return 0, in the case that it has encountered EOF -- i.e. the read has been successful, but has encountered the end of input.
+
+although we have disabled EOF when we set raw mode, (for instance, =C-d= will send a 4, and not EOF), and I can't think of any way right now to send an EOF to the program (future: maybe when reading from a physical file and encountering EOF?), it seems like good practice to call for =die()= only when it is actually an error.
+
++ [X] what happens when you call =perror= when there has been no error?
+*ANSWER*: googling tells me that it displays "No error". I would like to see this for myself, but I don't want to reenable canonical mode for this (to send =C-d=)
+
++ [X] in case of =C-q=, =exit(0)= is called immediately; why is =disableRawMode()= not called? test! and modify if appropriate
+*ANSWER*: indeed, raw mode is not disabled by exiting immediately. I shall fix this -- (can switch cases hold code blocks -- yes).
+
+
