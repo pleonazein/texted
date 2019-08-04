@@ -567,7 +567,6 @@ increasing the repeat rate will cause a much larger number of keypresses as I am
 
 I also played with the =time= command which breaks down how much of the process time was user time and system time.
 
-
 ** Commit 13
 
 + first things first: answering the weird segmentation fault when I attempted to read a multibyte keypress into a 4-byte integer. (see ponderable 3 in [[Commit 11]]
@@ -669,4 +668,55 @@ although we have disabled EOF when we set raw mode, (for instance, =C-d= will se
 + [X] in case of =C-q=, =exit(0)= is called immediately; why is =disableRawMode()= not called? test! and modify if appropriate
 *ANSWER*: indeed, raw mode is not disabled by exiting immediately. I shall fix this -- (can switch cases hold code blocks -- yes).
 
+** Commit 16
 
++ this commit involves setting up a screen refresh.
++ we create a function =editorScreenRefresh()=, which writes the value =0x1B[2J= (also stylized as =\01B[J=
++ =0x1B= is 27 in decimal, which is the code for ESC, as we may recall.
++ this /string literal/ is an /escape sequence/ for the *VT100* terminal; all the escape sequences are documented here: [[https://vt100.net/docs/vt100-ug/chapter3.html][Digital VT100 User Guide]].
+  + note that since it's a string, it is null-terminated ... hmmm
++ the escape sequence in question is /Erase in Display/. the general code for this is =ESC [ * J=, and it takes three possible parameters (*), which work as follows:
+
+| parameter | effect                                                        |
+|-----------+---------------------------------------------------------------|
+|         0 | erase from active position to end of screen (default)         |
+|         1 | erase from start of screen to active position                 |
+|         2 | erase all of display, set to single width, position preserved |
+|-----------+---------------------------------------------------------------|
+
++ so, our program uses the third parameter to clear the entire screen.
++ the tutorial calls this function inside the loop inside =main()=.
++ I wanted to study the clear screen in action, and this required printing the input characters to the screen, so, I modified the switch statement to the following:
+
+#+BEGIN_SRC C
+  switch(c) {
+  case CTRL_KEY('q'):
+    disableRawMode();
+    exit(0);
+    break;
+  case CTRL_KEY('l'):
+    editorRefreshScreen();
+    break;
+  default:
+        printf("%c\r\n",c);
+        break;
+  }
+#+END_SRC
+
+(this tries to print control characters too, which will not be displayed. this is quite temporary)
+
+holding =C-l= does clear the entire screen, but the cursor remains unmoved.
+
++ while I would like to see the effects of the other two parameters too, the setup is not yet ideal for it -- I would need to be able to move the cursor back to delete the screen from the point to the end of the screen; so I shall defer this exercise
++ since my implementation with =C-l= seems more sensible, I shall deviate from the tutorial in this regard, for now.
+
+
+*** Ponderables [2/2]:
+
++ [X] what is the difference between '\x1B2J' and "\x1B2J"?
+*ANSWER*: (the rough answer, because lazy): values encoded in single quotes are meant to be only for single characters, and in cases like this, they are called /multicharacter literals/ and are of type int; the exact value of which varies with the implementation (avoid them!)
+
+the other is a good old, NULL terminated string literal ... which brings us to the next question:
+
++ [X] we appear to be writing 4 characters from the string "\x1B[2J", which has 5 characters if we include the terminating NULL. explain this disparity.
+*ANSWER*: recall that =write= tries to write as many bytes as specified in the third parameter, from the buffer; it is completely fine if the nunmber of bytes to be written is smaller than the size of the buffer, which is what is happening in this case.
