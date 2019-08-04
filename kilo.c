@@ -13,6 +13,8 @@
 
 struct termios original_termios;
 
+void editorRefreshScreen();
+
 void disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
 }
@@ -63,7 +65,17 @@ void editorProcessKeypress() {
     disableRawMode();
     exit(0);
     break;
+  case CTRL_KEY('l'):
+    editorRefreshScreen();
+    break;
+  default:
+    printf("%c\r\n",c);
+    break;
   }
+}
+
+void editorRefreshScreen() {
+  write(STDOUT_FILENO, "\x1b[2J",4);
 }
 
 int main() {
