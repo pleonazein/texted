@@ -720,3 +720,42 @@ the other is a good old, NULL terminated string literal ... which brings us to t
 
 + [X] we appear to be writing 4 characters from the string "\x1B[2J", which has 5 characters if we include the terminating NULL. explain this disparity.
 *ANSWER*: recall that =write= tries to write as many bytes as specified in the third parameter, from the buffer; it is completely fine if the nunmber of bytes to be written is smaller than the size of the buffer, which is what is happening in this case.
+
+** Commit 17
+
++ (meta) I want to have function prototypes, instead of cluttering up the section before =main()= with function definitions. also fixes the problem of functions being detected to be /implicit/ by the compiler, which I had last time.
+  + time I internalized emacs' cut-copy-paste terminology and keybindings. (a silent RIP to my /Mastering Emacs/ endeavour, although it did lead me this far)
+
+| action | emacsila | keybinding |
+|--------+----------+------------|
+| cut    | kill     | =C-w=      |
+| copy   | kill (?) | =M-w=      |
+| paste  | yank     | =C-y=      |
+|--------+----------+------------|
+
++ in the last commit, we managed to clear the screen by writing a VT100 escape sequence to the terminal; this did clear the entire screen, however, the cursor was still back to where it was.
++ the escape sequence /Cursor Position/ sets the cursor at the position where we direct it to: =Esc [ * ; * H=, where the two parameters are for the position of the cursor.
+  + values of 0 or 1 for the parameters move the cursor to the first line or column,respectively
+    + the tutorial mentions that line and column numbers are numbered from 1, btw.
+  + /note/: the parameters are =line; column=, not the usual =(x,y)= coordinates. this is also okay, since semantically it is easier to invoke the notion of a line before that of the column
+  + not specifying any particular values defaults to a home action
+
++ time to implement this!
++ I have decided to make the escape sequence explicit, instead of resorting to the defaults.
++ clear the screen while exiting -- both for clean exits and exit in case of a failure; be sure to clear screen before calling =perror=, or the error message will be lost.
+
+*** Ponderables [3/3]:
+
++ [X] can I change cursor position by skipping one of the parameters?
+*ANSWER*: indeed, I can. although I think there might be more fine tuned escape sequences for moving the cursor up and down.
+
++ [X] what happens if I use an index larger than the dimensions afforded by my window? will there be a wrap-around?
+*answer*: no, it maxes out at the very end of the available frame. 
+
+in trying this out, I learned that I need to increase the number of bytes being written to STDOUT if one of my parameters is in 2 or more digits, say, ie =write(STDOUT_FILENO, "\x1b[3;3H",6);= will have to be modified to =write(STDOUT_FILENO, "\x1b[30;30H",8);=. makes sense. if I had a more complex use case, I would use write this escape sequence after constructing it with =strcat= and using =strlen= for the number of bytes.
+
++ [X] what happens when the dimensions of the window change? will previously over-the-top values become valid on-the-fly?
+*ANSWER*: the cursor goes as far as it can go, depending on current window dimensions. when the window size is increased, the cursor does not change its position to the new possible value. applying =C-l= again will set it to the requested location/ maximum value, whichever is lower.
+
+perhaps we will get to work with the SIGWINCH signal which is informs the process of a change in window size ...
+
