@@ -759,3 +759,61 @@ in trying this out, I learned that I need to increase the number of bytes being 
 
 perhaps we will get to work with the SIGWINCH signal which is informs the process of a change in window size ...
 
+** Commit 18
+
++ I don't quite understand the purpose of =editorRefreshScreen()= right now. Is it meant to clear the screen, or is it meant to build the general structure, with the extraneous elements such as the tildes to the left ... etc.
++ I shall not try to worry myself with aligning myself with how the tutorial implements some of these functions since this is bound to change significantly as we tack on better methods. I shall fix things later.
++ should I create a function to clear screen? yes I should.
+  + I now use =clearScreen()= whenever I desire to clean it up.
+
++ the tutorial now attempts to print a column of tildes on the left. this is done in a function =editorDrawRows=, and this is embedded in =editorRefreshScreen=
+  + this is done by printing tildes in a for loop (the tutorial does it 24 times, finding that this only fills up half the terminal in my usual setup, I doubled it to 48)
+
++ next, the tutorial creates an struct called =editorConfig= to save the state of the editor. for now, this struct just contains the previous global variable =orig_termios=, which has been used to store the original terminal settings. since =orig_termios= is now member of a struct, we need to modify its invocation throughout the program as =E.orig_termios= (=E= is the global variable of type =struct editorConfig=)
+
+*** Ponderables [1/1]:
+
++ [X] is there any difference between defining a global variable right when the structure is defined and defining it later?
+*ANSWER*: no. however, defining it separately seems to be much more clearer while reading code (although I really like this implicit declaration and find it very cool)
+
+** Commit 19
+
+*using ioctl() to obtain window size*
+
++ an easy way to obtain window size on linux is to use the =ioctl= function, which is not guaranteed to work on other unix-like systems. this method is later superceded by a more universal method.
+
++ =ioctl()= is a system call that manipulates the underlying device parameters of special files, such as terminals.
++ the second parameter to =ioctl()= is device-dependent request code
++ our usage of this function is as follows: =ioctl(STDOUT_FILENO, TIOCGWINSZ, &window_size)=.
+  + here =TIOCGWINSZ= is an =ioctl= request code that asks for the terminal dimensions.
+  + =window_size= is a struct defined as follows: (as found in =man 2 ioctl_tty=)
+
+#+BEGIN_SRC C
+struct winsize {
+    unsigned short ws_row;
+    unsigned short ws_col;
+    unsigned short ws_xpixel; /* unused */
+    unsigned short ws_ypixel; /* unused */
+}
+#+END_SRC
+  + thus with the above =ioctl()= call, we can extract information about the current window to a local variable of type =struct winsize=, which, btw, happens to be defined in =/usr/include/bits/ioctl-types.h= (was redirected to this from =/usr/include/sys/ioctl.h=, which was the header file included in this program)
+
++ we construct a function =int getWindowSize(int*, int*)=, which obtains the window size and passes them on to the parameters by reference
++ the return value is 0 on success, or -1 in case the =ioctl()= call failed, or the window had only one column.
+
++ recall the struct =editorConfig= which so far contained only the original termios settings. well, we now modify it to hold two integers -- for the row and column dimensions of our terminal.
++ it is the pointers to these two elements of our modified  =editorConfig= that are inputs to =getWindowSize=.
+
++ we create a function =initEditor()= which calls =getWindowSize=, and if the call fails, dies with an appropriate message.
++ =initEditor()= is called at the start of the program in =main=, right after we enable raw mode.
+
++ using the obtained dimensions of our window, we can modify =editorDrawRows()= to use the proper dimensions of the terminal window.
+
+*** Ponderables [1/1]:
+
++ [X] when asked to print the values of =E.screenrows=, the program prints 46 (in my usual i3 setup, with the terminal occupying half the screen). is this correct?
+
+*ANSWER*: it does appear to be so. the i3header and i3bar below take up real estate, when I tried the same in fullscreen mode, I got a value of 49. when I tried this on the tty, it was 57! I guess font size does play a role. (this also might explain my love for the tty console ...)
+(should try this program tmux, and see how that goes.)
+
+however, there appears to be one line below which is not filled by a tilde; this may have to do something with the loop?
