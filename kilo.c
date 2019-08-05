@@ -14,12 +14,31 @@
 struct termios original_termios;
 
 void editorRefreshScreen();
+void disableRawMode();
+void enableRawMode();
+void die();
+char editorReadKey();
+void editorProcessKeypress();
+
+
+int main() {
+
+  enableRawMode();
+
+  while(1) {
+    editorProcessKeypress();
+  }
+  
+  return 0;
+}
 
 void disableRawMode() {
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
 }
 
 void die (const char *s) {
+  write(STDOUT_FILENO, "\x1b[2J",4);
+  write(STDOUT_FILENO, "\x1b[0;0H",6);
   perror(s);
   exit(1);
 }
@@ -62,6 +81,7 @@ void editorProcessKeypress() {
 
   switch(c) {
   case CTRL_KEY('q'):
+    editorRefreshScreen();
     disableRawMode();
     exit(0);
     break;
@@ -76,15 +96,6 @@ void editorProcessKeypress() {
 
 void editorRefreshScreen() {
   write(STDOUT_FILENO, "\x1b[2J",4);
+  write(STDOUT_FILENO, "\x1b[0;0H",6);
 }
 
-int main() {
-
-  enableRawMode();
-
-  while(1) {
-    editorProcessKeypress();
-  }
-  
-  return 0;
-}
