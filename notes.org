@@ -817,3 +817,40 @@ struct winsize {
 (should try this program tmux, and see how that goes.)
 
 however, there appears to be one line below which is not filled by a tilde; this may have to do something with the loop?
+
+** Commit 20
+
++ I can see why =atexit()= is useful -- I would like to be able to disable raw mode in case of an error. right now, I have plugged in the =disableRawMode()= function into =die()=, but this feels flimsy. what if =die()= happens to be called on =tcsetattr()= failure? the program will recurse into oblivion.
+
++ in this commit, we devise a fallback method of determining window size, in case =ioctl()= fails.
++ let me try to outline the process, and I shall explain the code details (if required) later.
+
+  1. try to get to the bottom right corner of the screen. this is done using the VT100 escape sequences /Cursor Forward/ (=ESC [ Pn C=) and /Cursor Down/ (=ESC [ Pn B=), which move the cursor right and down respectively, by =Pn= units. by using high values for =Pn=, we are guaranteed to hit the bottom right position. (this is preferred over /Cursor Position/ since the standard guarantees that /Cursor Forward/Down/ will not go beyond the limits of the frame, while behaviour of /Cursor Position/ upon overshooting bounds is not mentioned -- correct an earlier Ponderable!). We use values of 999 for this purpose.
+  2. determine the current location of the cursor, using /Device Status Report/, the relevant code for which is: =ESC [ 6 n=: "Command from host, please report active position".
+  3. the response to the /Device Status Report/ needs to be /read/ from the input buffer -- the output is of the form =ESC [row;colR=, where =row= and =col= are the coordinates of the cursor's position.
+  4. we perform this read character by character into a string, until we hit the delimiting 'R', which is when the coordinates end
+  5. this string is then parsed to yield the coordinates.
+
+at this stage, we are not parsing the string, but instead printing it to the screen; where we can inspect it. parsing will be done in the next commit.
+
+some code details:
+
++ we are modifying the functions created for the =ioctl()= way of inspecting to incorporate a fallback in case the =ioctl()= function fails.
++ =ioctl()= is unlikely to fail, since I am on linux, so to test this alternate pathway, the conditional is primed with a 1, ie we bypass what does work. this 1 will be removed later.
++ in this alternate pathway, we move the cursor to 999;999, exit with -1 if it fails, if successful, invoke the following function
++ a new function =getCursorPosition()= is written which takes pointers to row and columns integers and prints the /Device Status Report/ to the terminal
++ using a loop, we use =read()= on STDIN, character by character, and print it to the screen until the read fails (recall: =read()= fails on timeout according to our VTIME settings)
++ =editorReadKey()= is called to wait for a keypress; this is for persistence -- else the screen is cleared immediately and control passes on to =die()= and we exit
+  + although this behaviour seems unnecessary. why does =getCursorPosition()= exit with a -1? *fixed*
+
+
+*** Ponderables [2/3]:
+
++ [ ] implement =atexit()=. clean up =die()= if you do so.
++ [X] after using /Device Status Report/ to query for the current cursor position, we are reading the report from STDIN. does this make sense? why? what did you expect?
+*ANSWER*: the terminal/terminal driver/ the I-don't-know-what receives the DSR, sends a response to the STDIN, where it is stored in the input buffer, waiting to be read. the following link is the closest I have found to explaining the situation: [[https://stackoverflow.com/a/38132923][Reading the Device Status Report ANSI Escape Sequence Reply]]. 
+
+printing to the screen cannot be a solution -- it's not possible to seek a particular location and query the terminal as to what is written there (at this stage, at least). this is most probably a primitive behaviour with ancient terminals that is being kept alive for backward compatibility.
+
++ [X] how can I replicate this "writing to STDIN buffer" behaviour ... for science, you know?
+*ANSWER*: this one seems hard. @A suggested an approach involving pipes, and another involving writing to the FD of the underlying terminal (this required higher permissions); but I wanted to know if there was a simpler way involving just C ... there probably isn't.
