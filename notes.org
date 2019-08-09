@@ -854,3 +854,29 @@ printing to the screen cannot be a solution -- it's not possible to seek a parti
 
 + [X] how can I replicate this "writing to STDIN buffer" behaviour ... for science, you know?
 *ANSWER*: this one seems hard. @A suggested an approach involving pipes, and another involving writing to the FD of the underlying terminal (this required higher permissions); but I wanted to know if there was a simpler way involving just C ... there probably isn't.
+
+** Commit 21
+
++ in this commit we parse the output in =getCursorPosition()= and send the dimensions back to =getWindowSize()=
+
++ the first step is to copy the string in the input buffer and store it in a string, which we call =buf[32]= (of length 32 ... reasonably large)
+  + reading into this string is done using =read()= in a loop, reading one character in each iteration.
+  + the loop is built to end when the length of the buffer is exhausted
+  + the delimiting character is 'R', so we break from the loop when this is read.
+  + we also =break= if there is nothing more to be read from STDIN, ie =read()= does not return a 1 (recall that =read()= returns the number of bytes successfully read, and that we are reading one byte at a time)
+  + once out of the loop, =buf[i]= is set to '\0', ie padded with a NULL (=printf/sscanf= require NULL terminated strings)
++ since the above loop breaks both in the case of a legitimate response, and in case =read()= fails for some other reason, we check if the first two characters in =buf= are '\x1b' and '['; else we return -1
++ next we use the function =sscanf()=
+  + =sscanf()= is like =scanf()=, except that it takes its input from a string instead of STDIN
+  + =sscanf()= can also take a format string, and read values from it by parsing it according to this format string. for instance, our format string is: ="%d;%d=, starting from =buf[2]=, and read into the pointers =rows= and =cols= respectively. what this means is that =sscanf()= is being told the string looks like two ints separated by a semicolon, and to parse and read these ints into the variables provided.
+  + if this process fails, ie =sscanf()= fails to return 2, corresponding to 2 successful int reads, we return with a -1
++ if the program has come this far, we have successfully extracted the cursor's location, and we can =return 0;=
+
+now that this fallback method has been tested, we can remove the =1 ||= in the =getWindowSize()= conditional.
+
++ a final, minor, fix. the last line does not display a '~' due to '\r\n' being printed when on the last line, causing the terminal to scroll down onto a new line. this can be fixed now that we know the dimensions of the terminal: print newlines only if the index is less than =E.screenrows-1=. (this -1 does bother me, but I am too tired for such pedantry.)
+
+*** Ponderables [/]:
+
++ regarding =sscanf()= format strings: how about using ="'\x1b[%d;%dR"= (parsing/testing the entire string) and ="%d;%dR"= (from =buf[2]=)?
+*ANSWER*: ah. when we breaking from the loop upon reading 'R', we do not increment the index; hence =buf[i]='\0'= replaces 'R' with '\0', so there is no 'R' to match (does =sscanf()= fail if the format string contains an 'R' but the input string doesn't? -- no, it still succeeds, because two ints have been read successfully, remember: we are testing for the success of two reads, which have already happened when the pattern matching for 'R' fails)
